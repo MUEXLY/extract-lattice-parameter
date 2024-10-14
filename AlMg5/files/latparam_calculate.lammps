@@ -1,0 +1,82 @@
+# Find minimum energy fcc configuration
+variable    seedNum     equal 1
+variable    latparam    equal 4.0479
+variable    dumpfolder  index dumps
+variable    AlAtomFrac  equal 0.95 # atomic fraction
+variable    alloyname   index AlMg5
+variable    latParamData index ${alloyname}_s${seedNum}_a_AA.txt
+# ---------- Initialize Simulation ---------------------
+clear
+units metal
+dimension 3
+boundary p p p
+atom_style atomic
+atom_modify map array
+
+# ---------- Create Atoms ---------------------
+lattice 	fcc ${latparam}
+region	whole block 0 1 0 1 0 1 units lattice
+create_box	2 whole
+
+create_atoms 1 region whole
+
+lattice	fcc 4 orient x 1 0 0 orient y 0 1 0 orient z 0 0 1
+#create_atoms 1 box
+replicate 20 20 20
+
+
+# ---------- Alloy the structure ---------------------
+#reset_timestep 0
+
+pair_style	eam/alloy
+pair_coeff	* * almg.liu.eam.alloy Mg Al
+
+neighbor 2.0 bin
+neigh_modify delay 10 check yes
+
+set type * type 1
+#
+group dummyID type 1
+#set group dummyID type/fraction 2 ${AlAtomFrac} 233569
+set group dummyID type/ratio 2 ${AlAtomFrac} 13753
+
+min_style        cg
+min_modify       dmax 1.0e-2 line quadratic
+
+# ---------- Settings ---------------------
+#compute 1 all ke/atom
+#compute 2 all cna/atom 3.4644
+#compute 2 all centro/atom
+#compute 2 all centro/atom  fcc
+#compute 3 all pe/atom
+#compute 4 all stress/atom NULL pair
+
+# ---------- Run Minimization ---------------------
+
+thermo 100
+thermo_style custom step pe lx ly lz press pxx pyy pzz etotal
+
+# if there is an old file, remove it
+shell rm ${latParamData}
+#shell mkdir ${dumpfolder}
+#shell cd ${dumpfolder}
+
+#dump OUT1 all custom 100000000 box.* id type x y z vx vy vz id
+
+minimize 0.0 1.0e-4 30000 100000
+minimize 0.0 1.0e-4 30000 100000
+fix min all box/relax aniso 0.0 vmax 0.01
+minimize 0.0 1.0e-4 30000 100000
+minimize 0.0 1.0e-4 30000 100000
+
+#shell cd ..
+
+variable length equal "lx/20"
+
+# on txt file
+print "Lattice constant (Angstoms): ${length}" append ${latParamData} screen no
+# on terminal
+print "Lattice constant (Angstoms) = ${length}"
+
+# Just to check the atom distribution
+write_data ${alloyname}_box.data
